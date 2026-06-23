@@ -17,9 +17,9 @@ def save_figure(fig, directory, filename):
 def plot_training_metrics(data, model_name, output_dir):
     epochs = data["epoch"]
     train_loss = data["train_loss"]
-    val_loss = data["test_loss"]
+    val_loss = data["val_loss"]
     train_acc = data["train_accuracy"]
-    val_acc = data["test_accuracy"]
+    val_acc = data["val_accuracy"]
 
     fig, axs = plt.subplots(1, 2, figsize=(12, 5))
 

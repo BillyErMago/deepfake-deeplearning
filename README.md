@@ -51,7 +51,7 @@ python main.py   // qui ho usato lr = 0.001, e ho usato batch size = 64
 
 **2. Per addestrare la ResNet-50:**
 ```bash
-python main.py --backbone resnet50   //se mi da errore vado sul main e abbasso la batch size finche non mi funziona sempre in potenze di 2  e segnarsi i batch size
+python main.py --backbone resnet50   //se mi da errore vado sul main e abbasso la batch size finche non mi funziona sempre in potenze di 2  e segnarsi i batch size qui uso lr = 0.0001
 ```
 
 Se vuoi ridurre o aumentare il numero di epoche (il default è 50) e di batch_size, puoi usare parametri aggiuntivi:

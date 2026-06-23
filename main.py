@@ -5,8 +5,8 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Configurazioni di base
-    parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
-    parser.add_argument("--batch_size", type=int, default=32, help="Batch size")
+    parser.add_argument("--lr", type=float, default=0.0001, help="Learning rate")
+    parser.add_argument("--batch_size", type=int, default=64, help="Batch size")
     parser.add_argument("--epochs", type=int, default=50, help="Numero di epoche")
     parser.add_argument(
         "--backbone",
