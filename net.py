@@ -13,10 +13,9 @@ class Net(nn.Module):
             self.backbone = models.resnet50(weights=ResNet50_Weights.DEFAULT)
             self.backbone.fc = nn.Linear(self.backbone.fc.in_features, num_classes)
             
-            # Freeze early layers
-            for name, param in self.backbone.named_parameters():
-                if not name.startswith("layer4") and not name.startswith("fc"):
-                    param.requires_grad = False
+            # Unfreeze all layers for fine-tuning on deepfake task
+            for param in self.backbone.parameters():
+                param.requires_grad = True
         else:
             raise ValueError(
                 f"Backbone '{backbone_name}' non supportata. Usa 'resnet50' o 'custom'."

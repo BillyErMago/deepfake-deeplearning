@@ -32,11 +32,16 @@ class Solver:
         # Imposta il numero di classi per la classificazione binaria (Deepfake)
         num_classes = 2
 
-        # Crea i DataLoader per il training e il test (Deepfake)
+        # Crea i DataLoader per il training, validation e test
         self.train_dataset = DeepfakeDataset(split='train', transform=transform_train)
+        self.val_dataset = DeepfakeDataset(split='val', transform=transform_test)
         self.test_dataset = DeepfakeDataset(split='test', transform=transform_test)
+        
         self.train_loader = DataLoader(
             self.train_dataset, batch_size=self.args.batch_size, shuffle=True
+        )
+        self.val_loader = DataLoader(
+            self.val_dataset, batch_size=self.args.batch_size, shuffle=False
         )
         self.test_loader = DataLoader(
             self.test_dataset, batch_size=self.args.batch_size, shuffle=False
@@ -49,19 +54,25 @@ class Solver:
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.AdamW(self.model.parameters(), lr=self.args.lr)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode="min", factor=0.1, patience=2
+            self.optimizer, mode="min", factor=0.2, patience=4
         )
 
         # Crea la directory per salvare i checkpoint (separata per modello)
         self.args.checkpoint_path = os.path.join(self.args.checkpoint_path, f"deepfake_{self.args.backbone}")
         os.makedirs(self.args.checkpoint_path, exist_ok=True)
         self.start_epoch = 0
+
+        # Se siamo in modalità test e non è stato specificato un checkpoint, carica automaticamente il best_model
+        if self.args.test and not self.args.checkpoint_file:
+            self.args.checkpoint_file = os.path.join(self.args.checkpoint_path, "best_model.pth")
+
         if self.args.checkpoint_file:
             self._load_checkpoint(self.args.checkpoint_file)
 
         # Imposta i parametri per l'early stopping
-        self.best_test_loss = float("inf")
-        self.best_test_accuracy = 0
+        self.best_val_loss = float("inf")
+        self.best_val_accuracy = 0
+        self.patience_counter = 0
 
     def _load_checkpoint(self, checkpoint_path):
         # Carica un checkpoint salvato per riprendere l'addestramento
@@ -103,36 +114,60 @@ class Solver:
         with open(self.csv_file, "w", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
-                ["epoch", "train_accuracy", "test_accuracy", "train_loss", "test_loss"]
+                ["epoch", "train_accuracy", "val_accuracy", "train_loss", "val_loss"]
             )
 
     def fit(self):
+        # Tracker per salvare l'epoca del miglior modello
+        self.best_checkpoint_epoch = 0
+
         for epoch in range(self.start_epoch, self.args.epochs):
 
             # Esegue un'epoca di addestramento
             self._train_one_epoch(epoch)
 
-            # Salva un checkpoint del modello
+            # Salva il checkpoint standard per permettere il resume (sovrascrive quello precedente per risparmiare spazio, opzionale)
             self._save_checkpoint(epoch)
 
-            # Valuta il modello sul training set e sul test set
+            # Valuta il modello sul training set e sul validation set
             train_accuracy, train_loss = self._evaluate(self.train_loader)
-            test_accuracy, test_loss = self._evaluate(self.test_loader)
+            val_accuracy, val_loss = self._evaluate(self.val_loader)
 
-            # Registra le metriche nel file CSV
+            # Registra le metriche nel file CSV prima dell'early stop
             self._log_metrics(
-                epoch, train_accuracy, test_accuracy, train_loss, test_loss
+                epoch, train_accuracy, val_accuracy, train_loss, val_loss
             )
 
-            # Controlla i criteri di early stopping
-            if self._early_stop(test_loss):
+            # Controlla i criteri di early stopping sulla validation loss
+            # Nota: _early_stop aggiorna automaticamente self.best_val_loss e patience_counter
+            if self._early_stop(val_loss):
                 print(
                     f"[INFO] Early stopping activated at epoch {epoch + 1}"
                 )
                 break
+            
+            # Se patience_counter è appena stato resettato a 0, abbiamo trovato un nuovo minimo!
+            # Salviamo il best model qua e aggiorniamo il file
+            if self.patience_counter == 0:
+                self._save_best_model(epoch)
 
             # Aggiorna il learning rate utilizzando lo scheduler
-            self.scheduler.step(test_loss)
+            self.scheduler.step(val_loss)
+
+    def _save_best_model(self, epoch):
+        best_model_path = os.path.join(
+            self.args.checkpoint_path, "best_model.pth"
+        )
+        torch.save(
+            {
+                "epoch": epoch + 1,
+                "model_state_dict": self.model.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+                "loss": self.best_val_loss
+            },
+            best_model_path,
+        )
+        print(f"[INFO] New best model saved at epoch {epoch + 1}")
 
     def _train_one_epoch(self, epoch):
         # Addestra il modello per una singola epoca
@@ -165,12 +200,17 @@ class Solver:
         self.model.eval()
         total_loss, correct, total = 0, 0, 0
 
+        if data_loader == self.test_loader:
+            set_name = "test"
+        elif data_loader == self.train_loader:
+            set_name = "train"
+        else:
+            set_name = "validation"
+
         # Configura il progress bar con uno spinner e una barra, con stile personalizzato
         with Progress(
             SpinnerColumn(),
-            TextColumn(
-                f"Evaluating on {'test' if data_loader == self.test_loader else 'train'} set"
-            ),
+            TextColumn(f"Evaluating on {set_name} set"),
             transient=True,  # Rimuove la barra dopo il completamento
         ) as progress:
             task = progress.add_task("eval", total=len(data_loader))
@@ -191,18 +231,18 @@ class Solver:
         avg_loss = total_loss / len(data_loader)
         return accuracy, avg_loss
 
-    def _log_metrics(self, epoch, train_accuracy, test_accuracy, train_loss, test_loss):
+    def _log_metrics(self, epoch, train_accuracy, val_accuracy, train_loss, val_loss):
         # Registra le metriche di addestramento e test in un file CSV
         with open(self.csv_file, "a", newline="") as f:
             writer = csv.writer(f)
             writer.writerow(
-                [epoch + 1, train_accuracy, test_accuracy, train_loss, test_loss]
+                [epoch + 1, train_accuracy, val_accuracy, train_loss, val_loss]
             )
 
-    def _early_stop(self, test_loss, patience=5, threshold=0.001):
+    def _early_stop(self, val_loss, patience=8, threshold=0.001):
         # Implementa il criterio di early stopping
-        if self.best_test_loss - test_loss >= threshold:
-            self.best_test_loss = test_loss
+        if self.best_val_loss - val_loss >= threshold:
+            self.best_val_loss = val_loss
             self.patience_counter = 0
             return False
         else:

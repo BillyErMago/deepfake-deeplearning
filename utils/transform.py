@@ -5,10 +5,13 @@ def get_transforms(pretrained=False):
     mean = [0.485, 0.456, 0.406]
     std = [0.229, 0.224, 0.225]
 
-    # Trasformazioni per il training
+    # Trasformazioni per il training espanso (Data Augmentation)
     transform_train = transforms.Compose([
         transforms.Resize((224, 224)),
         transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(degrees=15),                     # Rotazione casuale tra -15 e +15 gradi
+        transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),  # Traslazione casuale 
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),      # Leggera variazione di luminosità e contrasto
         transforms.ToTensor(),
         transforms.Normalize(mean=mean, std=std)
     ])

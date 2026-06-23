@@ -40,12 +40,27 @@ class CustomBackbone(nn.Module):
             nn.MaxPool2d(kernel_size=2, stride=2) if not use_stride else nn.Identity()
         ) # -> 256x14x14
 
+        # Block 5: Quinto strato convoluzionale (con downsampling)
+        self.block5 = nn.Sequential(
+            nn.Conv2d(256, 512, kernel_size=3, padding=1, stride=2 if use_stride else 1),
+            nn.BatchNorm2d(512),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2) if not use_stride else nn.Identity()
+        ) # -> 512x7x7
+
+        # Block 6: Sesto strato convoluzionale
+        self.block6 = nn.Sequential(
+            nn.Conv2d(512, 512, kernel_size=3, padding=1, stride=1),
+            nn.BatchNorm2d(512),
+            nn.ReLU()
+        ) # -> 512x7x7
+
         # Classificatore finale
         self.classifier = nn.Sequential(
             nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(),
             nn.Dropout(0.5),
-            nn.Linear(256, num_classes)
+            nn.Linear(512, num_classes)
         )
 
     def forward(self, x):
@@ -53,5 +68,7 @@ class CustomBackbone(nn.Module):
         x = self.block2(x)
         x = self.block3(x)
         x = self.block4(x)
+        x = self.block5(x)
+        x = self.block6(x)
         x = self.classifier(x)
         return x
