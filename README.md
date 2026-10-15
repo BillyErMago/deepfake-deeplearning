@@ -1,87 +1,146 @@
-# Deepfake Detection with Custom CNN and ResNet-50
+<div align="center">
 
-Questo progetto si occupa di **Deepfake Detection**, risolvendo un task di classificazione binaria (REAL vs FAKE) partendo da un dataset scaricato da Kaggle.
-Il codice mette a confronto due diverse architetture: una **Custom CNN** costruita interamente da zero e un modello **ResNet-50** pre-addestrato e riadattato.
+# 🎭 Deepfake Detection: Custom CNN vs. ResNet-50
 
-## Configurazione e Installazione
+**A comparative deep learning study for binary facial deepfake classification (Real vs. Fake) using both a custom convolutional neural network and transfer learning.**
 
-Per evitare conflitti tra dipendenze, è fortemente raccomandato l'uso di un Virtual Environment Python. Segui questi step dal terminale (nella cartella root del progetto):
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue?style=for-the-badge&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
+![Kaggle](https://img.shields.io/badge/Kaggle-Dataset-20BEFF?style=for-the-badge&logo=kaggle&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-1. **Crea l'ambiente virtuale**:
-```bash
-python -m venv venv
-```
+<!-- Se hai salvato grafici di plot.py (es. Loss/Accuracy o Matrice di Confusione), puoi caricarli e scommentare la riga sotto: -->
+<!-- <img src="checkpoints/metrics_preview.png" alt="Training Metrics & Confusion Matrix" width="700"/> -->
 
-2. **Attiva l'ambiente**:
-- Su Linux / macOS:
-  ```bash
-  source venv/bin/activate
-  ```
-- Su Windows:
-  ```bash
-  venv\Scripts\activate
-  ```
-
-3. **Installa le dipendenze**:
-```bash
-pip install -r requirements.txt
-```
-
-## Struttura del Dataset
-
-Assicurati che il file `FINAL_DATASET.csv` (scaricato da Kaggle) si trovi nella directory root del progetto.
-Il primo step è scaricare localmente tutte le immagini dichiarate all'interno del CSV:
-```bash
-python download_dataset.py
-```
-*Questo comando leggerà le URL e scaricherà le immagini all'interno della cartella `./data/images/`.*
+</div>
 
 ---
 
-## Addestramento del Modello
+## 📌 Overview
 
-Puoi lanciare il training con il backbone che preferisci. Lo script provvederà automaticamente ad assegnare la dimensione 224x224 alle immagini in ingresso.
-*(Nota: L'Early Stopping interverrà automaticamente nel caso in cui la rete dovesse bloccarsi).*
+This project addresses the problem of **Facial Deepfake Detection** by formulating it as a supervised binary classification task (**REAL** vs. **FAKE**). 
 
-**1. Per addestrare la Custom CNN (Default):**
-```bash
-python main.py   // qui ho usato lr = 0.001, e ho usato batch size = 64
+The goal is to benchmark two distinct architectural approaches on the same Kaggle facial dataset:
+1. **Custom CNN:** A lightweight convolutional architecture designed and trained from scratch.
+2. **ResNet-50 (Transfer Learning):** A deep residual backbone with pre-trained ImageNet weights, fine-tuned for facial artifact recognition.
+
+---
+
+## 🧠 Model Architectures
+
+| Feature | Custom CNN | ResNet-50 |
+| :--- | :--- | :--- |
+| **Approach** | Trained from scratch | Pre-trained Transfer Learning |
+| **Input Resolution** | 224 × 224 px | 224 × 224 px |
+| **Recommended Learning Rate** | `0.001` | `0.0001` |
+| **Recommended Batch Size** | `64` | `32` (or `16` / `8` for lower VRAM) |
+| **Regularization** | Early Stopping | Early Stopping & Pretrained Weights |
+
+---
+
+## 📁 Repository Structure
+
+```text
+├── backbones/           # Backbone model definitions (ResNet-50, etc.)
+├── utils/               # Dataset loaders, metrics & helper utilities
+├── FINAL_DATASET.csv    # Dataset annotations with image URLs and labels
+├── download_dataset.py  # Automated script to fetch images locally
+├── main.py              # CLI entry point for training and evaluation
+├── net.py               # Custom CNN network architecture
+├── solver.py            # Training loop, validation, and early stopping logic
+├── plot.py              # Generates Loss/Accuracy curves & Confusion Matrices
+├── requirements.txt     # Python package dependencies
+└── README.md
 ```
-*In alternativa: `python main.py --backbone custom`*
 
-**2. Per addestrare la ResNet-50:**
+---
+
+## ⚙️ Setup & Installation
+
+It is strongly recommended to use a virtual environment to manage dependencies:
+
 ```bash
-python main.py --backbone resnet50   //se mi da errore vado sul main e abbasso la batch size finche non mi funziona sempre in potenze di 2  e segnarsi i batch size qui uso lr = 0.0001
+# 1. Clone the repository
+git clone https://github.com/BillyErMago/deepfake-deeplearning.git
+cd deepfake-deeplearning
+
+# 2. Create and activate a virtual environment
+python -m venv venv
+
+# On Linux / macOS:
+source venv/bin/activate
+# On Windows:
+venv\Scripts\activate
+
+# 3. Install required packages
+pip install -r requirements.txt
 ```
 
-Se vuoi ridurre o aumentare il numero di epoche (il default è 50) e di batch_size, puoi usare parametri aggiuntivi:
+---
+
+## 📥 Dataset Preparation
+
+The training and evaluation pipeline uses image references indexed in `FINAL_DATASET.csv`. 
+
+Before starting training, download the dataset images locally:
+
+```bash
+python download_dataset.py
+```
+
+*Images will be fetched and organized into `./data/images/`.*
+
+---
+
+## 🚀 Model Training
+
+The training script automatically resizes incoming images to `224x224` and includes an integrated **Early Stopping** mechanism to prevent overfitting.
+
+### 1. Train the Custom CNN (Default)
+```bash
+python main.py --backbone custom --batch_size 64 --lr 0.001
+```
+
+### 2. Train the ResNet-50
+```bash
+python main.py --backbone resnet50 --batch_size 32 --lr 0.0001
+```
+
+> **💡 GPU / VRAM Tip:** If you encounter a CUDA `Out of Memory` (OOM) error when training ResNet-50, lower the batch size using `--batch_size 16` or `--batch_size 8`.
+
+### Custom Training Arguments
 ```bash
 python main.py --backbone resnet50 --epochs 100 --batch_size 32
 ```
 
-**Nota**
-Se da errore *OUT OF MEMORY* durante l'addestramento, prova a ridurre il `batch_size` a 16 o 8.
-
 ---
 
-## Testare il Modello
+## 🧪 Testing & Evaluation
 
-Per valutare il modello sul set di test e generare le metriche finali, basta lanciare lo script col flag `--test`. Lo script andrà a pescare automaticamente i pesi salvati nella cartella `./checkpoints/`.
+To evaluate a trained checkpoint on the test set and output test metrics, use the `--test` flag. The script retrieves the best weights from the `./checkpoints/` directory:
 
-**1. Test sulla Custom CNN:**
 ```bash
+# Evaluate Custom CNN
 python main.py --backbone custom --test
-```
 
-**2. Test sulla ResNet-50:**
-```bash
+# Evaluate ResNet-50
 python main.py --backbone resnet50 --test
 ```
 
-## Plottare i Risultati
+---
 
-Terminato l'addestramento e il testing, puoi facilmente stampare i grafici di evoluzione della Loss/Accuracy e le relative Matrici di Confusione:
+## 📊 Plotting Results & Confusion Matrices
+
+Once training and evaluation are complete, generate performance curves (Loss/Accuracy) and Confusion Matrices:
+
 ```bash
 python plot.py
 ```
-Le immagini (.png) e i report testuali generati verranno salvati direttamente nelle relative sottocartelle dentro `checkpoints/`.
+
+*All resulting plots (`.png`) and performance summaries are exported directly to `./checkpoints/`.*
+
+---
+
+## 👤 Author
+
+- **BillyErMago** - [GitHub Profile](https://github.com/BillyErMago)
